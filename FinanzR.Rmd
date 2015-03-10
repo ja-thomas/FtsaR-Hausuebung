@@ -1,0 +1,62 @@
+---
+title: "author_FinanzR"
+author: "author"
+date: "10. März 2015"
+output: html_document
+---
+
+```{r encoding, echo=FALSE}
+options(Encoding="UTF-8")
+```
+
+# Aufgabe 1
+
+Download stocks
+
+```{r stocks, echo=TRUE}
+# Load stocks
+x <- get.hist.quote(start="2006-01-01", instrument="vow.de", quote="AdjClose")
+y <- get.hist.quote(start="2006-01-01", instrument="dai.de", quote="AdjClose")
+
+# Create returns
+rx <-diff(log(x))
+ry <- diff(log(y))
+```
+
+* Eigenschaften der univariaten unbedingten Verteilungen
+```{r univunbvert}
+ew
+var
+ske
+kurt
+```
+
+* Zeitliche Abhängigkeitsstruktur der Renditen und von Transformationen der Renditen
+```{r}
+acf
+pacf
+```
+
+* Abhängigkeiten zwischen den Renditen der beiden Aktien
+```{r}
+
+```
+
+* Wie können Sie zeitliche Schwankungen Abhängigkeitsstruktur diagnostizieren?
+```{r, }
+```
+
+# Aufgabe 2
+
+´auto.arima´
+
+```{r autoarima}
+auto.arima(, seasonal=FALSE, ic="bic")
+
+```
+
+* Residuen extrahieren
+* GARCH(1,1) anpassen
+* Innovationsverteilungen
+*
+
