@@ -20,6 +20,8 @@ library(MASS)
 library(car)
 library(zoo)
 library(forecast)
+library(fGarch)
+library(parallel)
 
 # Load stocks
 vow <- get.hist.quote(start="2006-01-01", instrument="vow.de", quote="AdjClose")
@@ -110,7 +112,55 @@ Box.test(rdai, lag=5, type="Ljung-Box")
 ´auto.arima´
 
 ```{r autoarima}
-#auto.arima(, seasonal=FALSE, ic="bic")
+(rvow_arima <- auto.arima(rvow, seasonal=FALSE, ic="bic"))
+(rdai_arima <- auto.arima(rdai, seasonal = FALSE, ic = "bic"))
+
+
+rvow_arima_res <- residuals(rvow_arima)
+rdai_arima_res <- residuals(rdai_arima)
+
+missings <- which(is.na(rvow_arima_res) | is.na(rdai_arima_res))
+
+rvow_arima_res <- rvow_arima_res[-missings]
+rdai_arima_res <- rdai_arima_res[-missings]
+
+ts.plot(rvow_arima_res)
+ts.plot(rdai_arima_res)
+
+
+get_best_garch <- function(data){
+  cond.dist <- c("norm", "snorm", "ged", "sged", "std", "sstd", "snig", "QMLE")
+  delta <- c(1,2,3,4)
+  
+  param_set <- expand.grid(cond.dist, delta)
+
+  garch_models <- mapply(FUN = garchFit, cond.dist = param_set$Var1, delta = param_set$Var2,
+           MoreArgs = list(data = data,  include.skew = TRUE, include.shape = TRUE, trace=FALSE))
+    garch_models <- list(
+#   garch_norm = garchFit(data = data, cond.dist = "norm", 
+#                          include.delta = TRUE, trace = FALSE),
+#   garch_snorm = garchFit(data = data, cond.dist = "snorm", 
+#                           include.delta = TRUE, include.skew = TRUE, 
+#                           trace = FALSE),
+#   garch_std = garchFit(data = data, cond.dist = "std", 
+#                        include.delta = TRUE, include.shape = TRUE, 
+#                        trace = FALSE),
+#   garch_sstd = garchFit(data = data, cond.dist = "sstd", 
+#                          include.delta = TRUE, include.skew = TRUE, 
+#                          include.shape = TRUE, trace = FALSE),
+#   garch_snig = garchFit(data = data, cond.dist = "snig", trace = FALSE),
+#   garch_qmle = garchFit(data = data, cond.dist = "QMLE", trace = FALSE)
+#   )
+#   
+  garch_models[[which.min(lapply(garch_models, function(x) x@fit$ics[2]))]]
+}
+
+
+rvow_garch <- get_best_garch(rvow_arima_res)
+rdai_garch <- get_best_garch(rdai_arima_res)
+
+
+
 
 ```
 
