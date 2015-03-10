@@ -14,36 +14,95 @@ options(Encoding="UTF-8")
 Download stocks
 
 ```{r stocks, echo=TRUE}
+library(tseries)
+library(timeDate)
+library(MASS)
+library(car)
+library(zoo)
+library(forecast)
+
 # Load stocks
-x <- get.hist.quote(start="2006-01-01", instrument="vow.de", quote="AdjClose")
-y <- get.hist.quote(start="2006-01-01", instrument="dai.de", quote="AdjClose")
+vow <- get.hist.quote(start="2006-01-01", instrument="vow.de", quote="AdjClose")
+dai <- get.hist.quote(start="2006-01-01", instrument="dai.de", quote="AdjClose")
 
 # Create returns
-rx <-diff(log(x))
-ry <- diff(log(y))
+rvow <-diff(log(vow))
+rdai <- diff(log(dai))
+
+# Create list
+rstocks <- list(rvow = rvow, rdai = rdai)
 ```
 
 * Eigenschaften der univariaten unbedingten Verteilungen
 ```{r univunbvert}
-ew
-var
-ske
-kurt
+options(scipen = 10)
+
+sapply(rstocks, function(x) c(mean=mean(x), 
+                              var = var(x),
+                              skew = skewness(x),
+                              kurt = kurtosis(x)))
+
+layout(matrix(c(1,3,2,3), 2, 2, byrow = TRUE))
+truehist(rvow)
+qqPlot(rvow)
+boxplot(coredata(rvow))
+mtext("Return Volkswagen", outer = TRUE, side = 3, line = -3)
+
+truehist(rdai)
+qqPlot(rdai)
+boxplot(coredata(rdai))
+mtext("Return Daimler", outer = TRUE, side = 3, line = -3)
+
+layout(1)
 ```
 
 * Zeitliche Abhängigkeitsstruktur der Renditen und von Transformationen der Renditen
 ```{r}
-acf
-pacf
+
+
+par(mfrow = c(3, 1))
+ts.plot(rvow)
+title("Time Series Volkswagen")
+ts.plot(abs(rvow))
+ts.plot(rvow^2)
+
+ts.plot(rdai)
+title("Time Series Daimler")
+ts.plot(abs(rdai))
+ts.plot(rdai^2)
+
+acf(rvow, na.action=na.pass, main = "")
+title("ACF Volkswagen")
+acf(abs(rvow), na.action=na.pass, main = "absolut")
+acf(rvow^2, na.action=na.pass, main = "squared")
+
+acf(rdai, na.action=na.pass, main = "")
+title("ACF Daimler")
+acf(abs(rdai), na.action=na.pass, main = "absolut")
+acf(rdai^2, na.action=na.pass, main = "squared")
+
+par(mfrow = c(1, 1))
 ```
 
 * Abhängigkeiten zwischen den Renditen der beiden Aktien
-```{r}
+```{r, warning=FALSE}
+cor(rvow, rdai)
+scatterplot(rdai,rvow)
+ccf(as.numeric(rvow), as.numeric(rdai),  na.action = na.fail)
 
+# Copula
+q.rdai <- rank(as.numeric(rdai))/(length(as.numeric(rdai)) + 1)
+q.rvow <- rank(as.numeric(rvow))/(length(as.numeric(rvow)) + 1)
+plot(q.rdai, q.rvow)
 ```
 
 * Wie können Sie zeitliche Schwankungen Abhängigkeitsstruktur diagnostizieren?
 ```{r, }
+acf(rvow)
+Box.test(rvow, lag=5, type="Ljung-Box")
+
+acf(rdai)
+Box.test(rdai, lag=5, type="Ljung-Box")
 ```
 
 # Aufgabe 2
@@ -51,7 +110,7 @@ pacf
 ´auto.arima´
 
 ```{r autoarima}
-auto.arima(, seasonal=FALSE, ic="bic")
+#auto.arima(, seasonal=FALSE, ic="bic")
 
 ```
 
