@@ -262,21 +262,42 @@ rdai_garch_quant <- rank(rdai_garch_res)/(length(rdai_garch_res)+1)
 
 plot(rvow_garch_quant, rdai_garch_quant)
 
-param_set <- expand.grid(family = c("norm", "t"), 
-                         param = c(0.1,0.25,0.5,0.75,1), stringsAsFactors = FALSE)
 
 
-ellipic_copulas <- cbind(param_set, 
-                         BIC = mapply(FUN = function(family, param) 
-                           BIC(fitCopula(ellipCopula(family = family, param = param ), 
-          data = cbind(rvow_garch_quant, rdai_garch_quant))),
-       family = param_set$family, param = param_set$param))
+find_best_copula <- function(data){
+  family <- c("norm", "t") 
+  ellipic_copulas <- cbind(family, 
+                         BIC = sapply(family, function(family) tryCatch({
+                           BIC(fitCopula(ellipCopula(family = family, param = 0.5), 
+          data = data))
+                         }, error = function(e) NA)))
 
 
-family = c("clayton", "frank", "amh", "gumbel", "joe")
+family = c("clayton", "frank", "gumbel", "joe")
 
-archmCopula
+archm_copulas <- cbind(family, BIC = sapply(family, function(family) tryCatch({
+  BIC(fitCopula(archmCopula(family = family), 
+          data = data))}, 
+  error = function(e) NA)))
 
+rbind(ellipic_copulas, archm_copulas)
+}
+
+find_best_copula(cbind(rvow_garch_quant, rdai_garch_quant))
+
+q_rvow <- rank(as.numeric(rvow))/(length(as.numeric(rvow))+1)
+
+q_rdai <- rank(as.numeric(rdai))/(length(as.numeric(rdai))+1)
+
+find_best_copula(cbind(q_rvow[-length(q_rvow)], q_rvow[2:length(q_rvow)]))
+find_best_copula(cbind(q_rdai[-length(q_rdai)], q_rvow[2:length(q_rdai)]))
+
+
+q_norm_rvow <- as.numeric(pnorm(rvow))
+q_norm_rdai <- as.numeric(pnorm(rdai))
+
+find_best_copula(cbind(q_norm_rvow[-length(q_norm_rvow)], q_norm_rvow[2:length(q_norm_rvow)]))
+find_best_copula(cbind(q_norm_rdai[-length(q_norm_rdai)], q_norm_rdai[2:length(q_norm_rdai)]))
 
 
 
