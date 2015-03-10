@@ -21,7 +21,7 @@ library(car)
 library(zoo)
 library(forecast)
 library(fGarch)
-library(parallel)
+library(copula)
 
 # Load stocks
 vow <- get.hist.quote(start="2006-01-01", instrument="vow.de", quote="AdjClose")
@@ -153,15 +153,132 @@ get_best_garch <- function(data){
 
 
 (rvow_garch <- get_best_garch(rvow_arima_res))
-(rdai_garch <- get_best_garch(rdai_arima_res))
+rvow_garch@fit$ics
 
+ts.plot(rvow_arima_res, ylim=c(-.2,.2))
+lines(quants <- qstd(.01, mean=rvow_garch@fit$par[1], sd=rvow_garch@sigma.t, 
+                     nu = rvow_garch@fit$par[5]), col=2)
+points(which(rvow_arima_res < quants), 
+       rvow_arima_res[which(rvow_arima_res < quants)], pch=16, col=2)
+
+sum(rvow_arima_res < quants)
+sum(rvow_arima_res < quants)/length(rvow_arima_res)
+
+(rdai_garch <- get_best_garch(rdai_arima_res))
+rdai_garch@fit$ics
+
+ts.plot(rdai_arima_res, ylim=c(-.2,.2))
+lines(quants <- qged(.01, mean=rdai_garch@fit$par[1], sd=rdai_garch@sigma.t, 
+                     nu = rdai_garch@fit$par[5]), col=2)
+points(which(rdai_arima_res < quants), 
+       rdai_arima_res[which(rdai_arima_res < quants)], pch=16, col=2)
+
+sum(rdai_arima_res < quants)
+sum(rdai_arima_res < quants)/length(rvow_arima_res)
+
+
+oos_estimation <- function(data, model, dist, orig = 500, Tmax = 1000){
+  k <- 1
+  pars <- matrix(nrow=Tmax-orig, ncol=6, 
+                 dimnames=list(NULL, c(names(model@fit$par),"sigma.t")))
+  for(i in orig:(Tmax-1)){
+    tryCatch({
+          m <- garchFit(~ garch(1,1), data=as.data.frame(data[1:i]), trace=FALSE, 
+                  cond.dist=dist)  
+          p <- m@fit$par
+          pars[k,1:5] <- p
+          pars[k,6] <- p[2] + p[3]*data[i]^2 + p[4]*tail(m@sigma.t,1)
+    }, error = function(e){
+      print(paste("error in run: ", k))
+      pars[k, ] <- NA
+    }) 
+    k <- k+1
+  }
+  pars
+}
+
+orig = 1500 
+Tmax = 2000
+
+parameters_rvow_garch <- oos_estimation(data = rvow_arima_res, 
+                                        model = rvow_garch, dist = "std",
+                                        orig = orig, Tmax = Tmax) 
+
+plot(zoo(parameters_rvow_garch))
+
+
+ts.plot(rvow_arima_res[(orig+1):Tmax])
+lines(quants <- qstd(0.01, mean=parameters_rvow_garch[,1], sd=parameters_rvow_garch[,6], 
+                     nu = parameters_rvow_garch[,5]), col = 2)
+points(which(rvow_arima_res[(orig+1):Tmax] < quants), 
+       rvow_arima_res[(orig+1):Tmax][which(rvow_arima_res[(orig+1):Tmax] < quants)], pch=16, col=2)
+
+sum(rvow_arima_res[(orig+1):Tmax] < quants)
+sum(rvow_arima_res[(orig+1):Tmax] < quants)/length(rvow_arima_res[orig+1:Tmax])
+
+parameters_rdai_garch <- oos_estimation(data = rdai_arima_res, 
+                                        model = rdai_garch, dist = "ged", 
+                                        orig = orig, Tmax = Tmax)
+                                         
+plot(zoo(parameters_rdai_garch))
+
+ts.plot(rdai_arima_res[(orig+1):Tmax])
+lines(quants <- qged(0.01, mean=parameters_rdai_garch[,1], sd=parameters_rdai_garch[,6], 
+                     nu = parameters_rdai_garch[,5]), col = 2)
+
+points(which(rdai_arima_res[(orig+1):Tmax] < quants), 
+       rdai_arima_res[(orig+1):Tmax][which(rdai_arima_res[(orig+1):Tmax] < quants)], pch=16, col=2)
+
+sum(rdai_arima_res[(orig+1):Tmax] < quants)
+sum(rdai_arima_res[(orig+1):Tmax] < quants)/length(rdai_arima_res[orig+1:Tmax])
+
+
+
+garch_predictions <- t(replicate(10000, as.numeric(garchSim(
+  spec = garchSpec(model = list(), cond.dist = "std"), n=10, n.start=11))))
+  
+
+par(mfrow = c(1,2))
+for(i in i:10){
+  truehist(garch_predictions[,i], main=paste("Step:", i), xlab = "", xlim=c(-0.04, 0.04))
+  params <- fitdistr(garch_predictions[,i], "t")
+  qqPlot(garch_predictions[,i], dist = "t", df = params$estimate[3])
+}
+par(mfrow = c(1,1))
 
 
 
 ```
 
-* Residuen extrahieren
-* GARCH(1,1) anpassen
-* Innovationsverteilungen
-*
+
+# Aufgabe 3
+
+```{r}
+rvow_garch_res <- residuals(rvow_garch)
+rvow_garch_quant <- rank(rvow_garch_res)/(length(rvow_garch_res)+1)
+
+rdai_garch_res <- residuals(rdai_garch)
+rdai_garch_quant <- rank(rdai_garch_res)/(length(rdai_garch_res)+1)
+
+plot(rvow_garch_quant, rdai_garch_quant)
+
+param_set <- expand.grid(family = c("norm", "t"), 
+                         param = c(0.1,0.25,0.5,0.75,1), stringsAsFactors = FALSE)
+
+
+ellipic_copulas <- cbind(param_set, 
+                         BIC = mapply(FUN = function(family, param) 
+                           BIC(fitCopula(ellipCopula(family = family, param = param ), 
+          data = cbind(rvow_garch_quant, rdai_garch_quant))),
+       family = param_set$family, param = param_set$param))
+
+
+family = c("clayton", "frank", "amh", "gumbel", "joe")
+
+archmCopula
+
+
+
+
+```
 
